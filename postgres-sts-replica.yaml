@@ -1,0 +1,92 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  labels:
+    app: postgres-sts
+  name: postgres-sts
+  namespace: flaskie
+spec:
+  minReadySeconds: 10
+  persistentVolumeClaimRetentionPolicy:
+    whenDeleted: Retain
+    whenScaled: Retain
+  podManagementPolicy: OrderedReady
+  replicas: 1
+  revisionHistoryLimit: 10
+  selector:
+    matchLabels:
+      app: postgres-sts
+  serviceName: "postgres-service"
+  template:
+    metadata:
+      labels:
+        app: postgres-sts
+    spec:
+      containers:
+      - args:
+        - -c
+        - hba_file=/etc/postgresql/pg_hba.conf
+        env:
+        - name: POSTGRES_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              key: POSTGRES_PASSWORD
+              name: postgres-secret
+        envFrom:
+        - configMapRef:
+            name: postgres-config
+        image: postgres:19beta4
+        imagePullPolicy: IfNotPresent
+        name: postgres-container
+        ports:
+        - containerPort: 5432
+          protocol: TCP
+        resources:
+          limits:
+            cpu: "1"
+            memory: 1Gi
+          requests:
+            cpu: 500m
+            memory: 512Mi
+        terminationMessagePath: /dev/termination-log
+        terminationMessagePolicy: File
+        volumeMounts:
+        - mountPath: /var/lib/postgresql
+          name: postgres-volume
+        - mountPath: /etc/postgresql/pg_hba.conf
+          name: hba-config
+          subPath: pg_hba.conf
+      dnsPolicy: ClusterFirst
+      restartPolicy: Always
+      schedulerName: default-scheduler
+      securityContext: {}
+      terminationGracePeriodSeconds: 30
+      tolerations:
+      - effect: NoSchedule
+        key: node-role.kubernetes.io/control-plane
+        operator: Exists
+      volumes:
+      - name: postgres-volume
+        persistentVolumeClaim:
+          claimName: postgres-pv-claim
+      - configMap:
+          defaultMode: 420
+          name: postgres-custom-hba
+        name: hba-config
+  updateStrategy:
+    rollingUpdate:
+      partition: 0
+    type: RollingUpdate
+  volumeClaimTemplates:
+  - apiVersion: v1
+    kind: PersistentVolumeClaim
+    metadata:
+      name: postgres-volume
+    spec:
+      accessModes:
+      - ReadWriteOnce
+      resources:
+        requests:
+          storage: 32Gi
+      storageClassName: local-storage-baremetal
+      volumeMode: Filesystem
