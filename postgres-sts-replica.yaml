@@ -35,7 +35,7 @@ spec:
         envFrom:
         - configMapRef:
             name: postgres-config
-        image: postgres:19beta4
+        image: postgres:19rc1-trixie
         imagePullPolicy: IfNotPresent
         name: postgres-container
         ports:
